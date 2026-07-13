@@ -13,7 +13,8 @@ else ()
     add_compile_definitions(APP_DEBUG=1)
 endif ()
 
-add_library(${CMAKE_PROJECT_NAME} SHARED
+add_library(
+        ${CMAKE_PROJECT_NAME} SHARED
         daemon.cpp
         entry.cpp
         jni_env_guard.cpp
@@ -24,7 +25,8 @@ add_library(${CMAKE_PROJECT_NAME} SHARED
 find_package(lvgl REQUIRED CONFIG)
 find_package(boringssl REQUIRED CONFIG)
 
-target_link_libraries(${CMAKE_PROJECT_NAME}
+target_link_libraries(
+        ${CMAKE_PROJECT_NAME}
         android
         log
         lvgl::lvgl
