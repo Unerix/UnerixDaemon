@@ -13,7 +13,10 @@ add_library(${CMAKE_PROJECT_NAME} SHARED
         context_manager.cpp
 )
 
+find_package(lvgl REQUIRED CONFIG)
+
 target_link_libraries(${CMAKE_PROJECT_NAME}
         android
         log
+        lvgl::lvgl
 )
