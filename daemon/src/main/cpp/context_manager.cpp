@@ -22,8 +22,8 @@ jobject ContextManager::GetContext() {
 jobject ContextManager::ResolveApplicationContext() {
     Attempted = true;
 
-    JniEnvGuard guard;
-    JNIEnv *env = guard.getEnv();
+    JniEnvGuard Guard;
+    JNIEnv *env = Guard.GetEnv();
     if (!env) {
         LOG_E("resolveApplicationContext: failed to get JNIEnv");
         return nullptr;

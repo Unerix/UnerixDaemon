@@ -18,7 +18,7 @@ public:
     JniEnvGuard &operator=(const JniEnvGuard &) = delete;
 
     // 获取当前线程的 JNIEnv
-    JNIEnv *getEnv();
+    JNIEnv *GetEnv();
 
 private:
     // 当前线程的 JNIEnv

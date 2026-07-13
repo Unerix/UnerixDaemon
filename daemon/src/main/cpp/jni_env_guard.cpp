@@ -36,6 +36,6 @@ JniEnvGuard::~JniEnvGuard() {
     }
 }
 
-JNIEnv *JniEnvGuard::getEnv() {
+JNIEnv *JniEnvGuard::GetEnv() {
     return GJniEnv;
 }

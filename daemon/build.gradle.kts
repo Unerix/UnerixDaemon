@@ -31,7 +31,9 @@ android {
 }
 
 dependencies {
-    implementation(libs.lvgl.android)
+    implementation(libs.wyq0918dev.lvgl)
+    implementation(libs.vvb2060.boringssl)
+
     implementation(libs.androidx.appcompat)
     implementation(libs.androidx.core.ktx)
     implementation(libs.material)
