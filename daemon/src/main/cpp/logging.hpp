@@ -3,7 +3,7 @@
 #include <android/log.h>
 
 #ifndef DAEMON_LOG_TAG
-#define DAEMON_LOG_TAG "unerix_daemon"
+#define DAEMON_LOG_TAG "UnerixDaemon"
 #endif
 
 #ifndef NO_LOG
