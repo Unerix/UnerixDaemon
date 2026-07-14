@@ -19,7 +19,7 @@ public:
     void StopRender();
 
 private:
-    ANativeWindow *RenderWindow = nullptr;          // 原生窗口
+    ANativeWindow *RenderWindow = nullptr;    // 原生窗口
     ANativeWindow_Buffer WindowBuffer;        // 帧缓冲信息
     const int AppWidth = 480;                 // LVGL 逻辑宽
     const int AppHeight = 320;                // LVGL 逻辑高
