@@ -160,11 +160,11 @@ void RenderEngine::LvFlushCallback(lv_display_t *Display, const lv_area_t *Area,
 }
 
 void RenderEngine::LvTouchCbStatic(lv_indev_t *IndevDriver, lv_indev_data_t *Data) {
-    auto *App = (RenderEngine *) lv_indev_get_user_data(IndevDriver);
-    App->LvTouchCallback(IndevDriver, Data);
+    auto *Engine = (RenderEngine *) lv_indev_get_user_data(IndevDriver);
+    Engine->LvTouchCallback(IndevDriver, Data);
 }
 
 void RenderEngine::LvFlushCbStatic(lv_display_t *Display, const lv_area_t *Area, uint8_t *PxMap) {
-    auto *App = (RenderEngine *) lv_display_get_user_data(Display);
-    App->LvFlushCallback(Display, Area, PxMap);
+    auto *Engine = (RenderEngine *) lv_display_get_user_data(Display);
+    Engine->LvFlushCallback(Display, Area, PxMap);
 }
