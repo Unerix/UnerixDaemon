@@ -1,14 +1,14 @@
 #include "jvm_manager.hpp"
 
-JvmManager &JvmManager::getInstance() {
+JvmManager &JvmManager::GetInstance() {
     static JvmManager instance;
     return instance;
 }
 
-void JvmManager::init(JavaVM *vm) {
+void JvmManager::Init(JavaVM *vm) {
     GJavaVM = vm;
 }
 
-JavaVM *JvmManager::getJavaVM() {
+JavaVM *JvmManager::GetJavaVM() {
     return GJavaVM;
 }

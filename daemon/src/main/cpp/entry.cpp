@@ -1,14 +1,21 @@
 #include <jni.h>
 #include "entry.hpp"
 #include "jvm_manager.hpp"
+#include "method_register.hpp"
 
-extern "C" JNIEXPORT jint JNICALL JNI_OnLoad(JavaVM *vm, void *reserved) {
+Entry::Entry() {
 
-    JvmManager::getInstance().init(vm);
-
-    return JNI_VERSION_1_6;
 }
 
-extern "C" JNIEXPORT void JNICALL JNI_OnUnload(JavaVM* vm, void* reserved) {
+Entry::~Entry() {
+
+}
+
+void Entry::OnLoad(JavaVM *vm, void *reserved) {
+    JvmManager::GetInstance().Init(vm);
+    MethodRegister();
+}
+
+void Entry::OnUnload(JavaVM *vm, void *reserved) {
 
 }

@@ -4,6 +4,9 @@
 
 #define FIND_HIDDEN_CLASS(env, className) (env)->FindClass(className)
 
+#define APP_GLOBALS_CLASS_NAME "android/app/AppGlobals"
+#define ACTIVITY_THREAD_CLASS_NAME "android/app/ActivityThread"
+
 class ContextManager final {
 
 public:
@@ -13,7 +16,7 @@ public:
 
     ContextManager &operator=(const ContextManager &) = delete;
 
-    static ContextManager &getInstance();
+    static ContextManager &GetInstance();
 
     jobject GetContext();
 

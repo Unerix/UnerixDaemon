@@ -2,7 +2,7 @@
 #include "jni_env_guard.hpp"
 #include "logging.hpp"
 
-ContextManager &ContextManager::getInstance() {
+ContextManager &ContextManager::GetInstance() {
     static ContextManager instance;
     return instance;
 }
@@ -23,8 +23,8 @@ jobject ContextManager::ResolveApplicationContext() {
     Attempted = true;
 
     JniEnvGuard Guard;
-    JNIEnv *env = Guard.GetEnv();
-    if (!env) {
+    JNIEnv *Env = Guard.GetEnv();
+    if (!Env) {
         LOG_E("resolveApplicationContext: failed to get JNIEnv");
         return nullptr;
     }
@@ -32,63 +32,63 @@ jobject ContextManager::ResolveApplicationContext() {
     // =========================================================
     // 方案 1：AppGlobals.getInitialApplication()
     // =========================================================
-    jclass appGlobalsClass = FIND_HIDDEN_CLASS(env, "android/app/AppGlobals");
+    jclass appGlobalsClass = FIND_HIDDEN_CLASS(Env, APP_GLOBALS_CLASS_NAME);
     if (appGlobalsClass) {
-        jmethodID getInitialApp = env->GetStaticMethodID(
+        jmethodID getInitialApp = Env->GetStaticMethodID(
                 appGlobalsClass,
                 "getInitialApplication",
                 "()Landroid/app/Application;"
         );
         if (getInitialApp) {
-            jobject app = env->CallStaticObjectMethod(appGlobalsClass, getInitialApp);
-            if (env->ExceptionCheck()) {
-                env->ExceptionClear();
+            jobject app = Env->CallStaticObjectMethod(appGlobalsClass, getInitialApp);
+            if (Env->ExceptionCheck()) {
+                Env->ExceptionClear();
                 LOG_E("AppGlobals.getInitialApplication() threw exception");
             } else if (app) {
-                Context = env->NewGlobalRef(app);
+                Context = Env->NewGlobalRef(app);
                 LOG_D("Application context obtained via AppGlobals");
-                env->DeleteLocalRef(app);
-                env->DeleteLocalRef(appGlobalsClass);
+                Env->DeleteLocalRef(app);
+                Env->DeleteLocalRef(appGlobalsClass);
                 return Context;
             }
         }
-        env->DeleteLocalRef(appGlobalsClass);
+        Env->DeleteLocalRef(appGlobalsClass);
     }
 
     // =========================================================
     // 方案 2：ActivityThread.currentActivityThread().getApplication()
     // =========================================================
-    jclass atClass = FIND_HIDDEN_CLASS(env, "android/app/ActivityThread");
+    jclass atClass = FIND_HIDDEN_CLASS(Env, ACTIVITY_THREAD_CLASS_NAME);
     if (atClass) {
-        jmethodID currentAt = env->GetStaticMethodID(
+        jmethodID currentAt = Env->GetStaticMethodID(
                 atClass,
                 "currentActivityThread",
                 "()Landroid/app/ActivityThread;"
         );
         if (currentAt) {
-            jobject atObj = env->CallStaticObjectMethod(atClass, currentAt);
-            if (atObj && !env->ExceptionCheck()) {
-                jmethodID getApp = env->GetMethodID(
+            jobject atObj = Env->CallStaticObjectMethod(atClass, currentAt);
+            if (atObj && !Env->ExceptionCheck()) {
+                jmethodID getApp = Env->GetMethodID(
                         atClass,
                         "getApplication",
                         "()Landroid/app/Application;"
                 );
                 if (getApp) {
-                    jobject app = env->CallObjectMethod(atObj, getApp);
-                    if (env->ExceptionCheck()) {
-                        env->ExceptionClear();
+                    jobject app = Env->CallObjectMethod(atObj, getApp);
+                    if (Env->ExceptionCheck()) {
+                        Env->ExceptionClear();
                     } else if (app) {
-                        Context = env->NewGlobalRef(app);
+                        Context = Env->NewGlobalRef(app);
                         LOG_D("Application context obtained via ActivityThread");
-                        env->DeleteLocalRef(app);
+                        Env->DeleteLocalRef(app);
                     }
                 }
-                env->DeleteLocalRef(atObj);
+                Env->DeleteLocalRef(atObj);
             } else {
-                env->ExceptionClear();
+                Env->ExceptionClear();
             }
         }
-        env->DeleteLocalRef(atClass);
+        Env->DeleteLocalRef(atClass);
     }
 
     if (Context) {
@@ -96,5 +96,6 @@ jobject ContextManager::ResolveApplicationContext() {
     } else {
         LOG_E("All methods failed to obtain Application context");
     }
+
     return Context;
 }

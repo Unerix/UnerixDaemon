@@ -12,7 +12,7 @@ composeBom = "2026.06.01"
 appcompat = "1.7.1"
 material = "1.14.0"
 
-lvgl = "0.0.2"
+lvgl = "1.0.1"
 boringssl = "20251124"
 
 [libraries]

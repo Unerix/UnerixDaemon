@@ -11,11 +11,11 @@ public:
 
     JvmManager &operator=(const JvmManager &) = delete;
 
-    static JvmManager &getInstance();
+    static JvmManager &GetInstance();
 
-    void init(JavaVM *vm);
+    void Init(JavaVM *vm);
 
-    JavaVM *getJavaVM();
+    JavaVM *GetJavaVM();
 
 private:
     JavaVM *GJavaVM = nullptr;

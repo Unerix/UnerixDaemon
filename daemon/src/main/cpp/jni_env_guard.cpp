@@ -3,18 +3,18 @@
 
 JniEnvGuard::JniEnvGuard() {
     // 获取JVM指针
-    JavaVM *jvm = JvmManager::getInstance().getJavaVM();
-    if (!jvm) return;
+    JavaVM *Jvm = JvmManager::GetInstance().GetJavaVM();
+    if (!Jvm) return;
 
     // 检查当前线程是否已经附加到 JVM
-    jint status = jvm->GetEnv(
+    jint status = Jvm->GetEnv(
             reinterpret_cast<void **>(&GJniEnv),
             JNI_VERSION_1_6
     );
 
     if (status == JNI_EDETACHED) {
         // 当前线程未附加，手动附加
-        if (jvm->AttachCurrentThread(&GJniEnv, nullptr) == JNI_OK) {
+        if (Jvm->AttachCurrentThread(&GJniEnv, nullptr) == JNI_OK) {
             NeedDetach = true;
         } else {
             GJniEnv = nullptr;
@@ -29,9 +29,9 @@ JniEnvGuard::JniEnvGuard() {
 
 JniEnvGuard::~JniEnvGuard() {
     if (NeedDetach) {
-        JavaVM *jvm = JvmManager::getInstance().getJavaVM();
-        if (jvm) {
-            jvm->DetachCurrentThread();
+        JavaVM *Jvm = JvmManager::GetInstance().GetJavaVM();
+        if (Jvm) {
+            Jvm->DetachCurrentThread();
         }
     }
 }
