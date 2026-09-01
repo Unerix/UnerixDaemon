@@ -13,20 +13,12 @@ RenderEngine::~RenderEngine() {
     StopRender();
 }
 
-void RenderEngine::StartRender(ANativeWindow *Window, int Width, int Height) {
+void RenderEngine::StartRender(ANativeWindow *Window) {
     StopRender();
     if (Window == nullptr) {
         return;
     }
-    if (Width <= 0 || Height <= 0) {
-        LOG_E("Invalid size [%d x %d]", Width, Height);
-        ANativeWindow_release(Window);
-        return;
-    }
     RenderWindow = Window;
-    LogicWidth = Width;
-    LogicHeight = Height;
-    LOG_D("ImGui Start [%d x %d]", LogicWidth, LogicHeight);
     bIsRunning = true;
     RenderThread = thread(&RenderEngine::ImLoopTask, this);
 }
@@ -108,6 +100,21 @@ bool RenderEngine::InitEgl() {
         return false;
     }
 
+    // 从 EGL Surface 查询真实渲染尺寸（TextureView 的 buffer 尺寸由 EGL 与 SurfaceFlinger 协商）
+    EGLint W = 0, H = 0;
+    if (!eglQuerySurface(Display, EglSurface, EGL_WIDTH, &W) || W <= 0) {
+        W = ANativeWindow_getWidth(RenderWindow);
+    }
+    if (!eglQuerySurface(Display, EglSurface, EGL_HEIGHT, &H) || H <= 0) {
+        H = ANativeWindow_getHeight(RenderWindow);
+    }
+    if (W <= 0 || H <= 0) {
+        LOG_E("Failed to query render size");
+        DeinitEgl();
+        return false;
+    }
+    LogicWidth = W;
+    LogicHeight = H;
     LOG_D("EGL Surface [%d x %d]", LogicWidth, LogicHeight);
     return true;
 }

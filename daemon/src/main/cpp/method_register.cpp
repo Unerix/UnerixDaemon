@@ -14,8 +14,8 @@ static void NativeCreate(JNIEnv *Env, jobject) {
     }
 }
 
-// Surface → ANativeWindow（宽高由 Java 传入）→ 启动渲染
-static void NativeStart(JNIEnv *Env, jobject, jobject Surface, jint Width, jint Height) {
+// Surface → ANativeWindow → 启动渲染（尺寸由 EGL Surface 查询）
+static void NativeStart(JNIEnv *Env, jobject, jobject Surface) {
     if (GlobalApp == nullptr || Surface == nullptr) {
         return;
     }
@@ -23,7 +23,7 @@ static void NativeStart(JNIEnv *Env, jobject, jobject Surface, jint Width, jint 
     if (NativeWindow == nullptr) {
         return;
     }
-    GlobalApp->StartRender(NativeWindow, Width, Height);
+    GlobalApp->StartRender(NativeWindow);
 }
 
 // 转发触摸
@@ -51,11 +51,11 @@ static void NativeDestroy(JNIEnv *Env, jobject) {
 }
 
 static const JNINativeMethod NativeMethods[] = {
-        {"lvglCreate", "()V", (void *) NativeCreate},
-        {"lvglStart", "(Landroid/view/Surface;II)V", (void *) NativeStart},
-        {"lvglOnTouch", "(ZII)V", (void *) NativeOnTouch},
-        {"lvglStop", "()V", (void *) NativeStop},
-        {"lvglDestroy", "()V", (void *) NativeDestroy},
+        {"onUnerixCreate", "()V", (void *) NativeCreate},
+        {"onUnerixStartRender", "(Landroid/view/Surface;)V", (void *) NativeStart},
+        {"onUnerixTouch", "(ZII)V", (void *) NativeOnTouch},
+        {"onUnerixStopRender", "()V", (void *) NativeStop},
+        {"onUnerixDestroy", "()V", (void *) NativeDestroy},
 };
 
 void MethodRegister() {

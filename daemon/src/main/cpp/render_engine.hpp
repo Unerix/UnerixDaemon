@@ -9,8 +9,8 @@ class RenderEngine {
 public:
     ~RenderEngine();
 
-    // 绑定 NativeWindow（宽高由 Java 侧传入，不固定）并启动渲染线程
-    void StartRender(ANativeWindow *Window, int Width, int Height);
+    // 绑定 NativeWindow 并启动渲染线程（尺寸由 EGL Surface 查询，无需外部传入）
+    void StartRender(ANativeWindow *Window);
 
     // 接收触摸（Touch=true 按下），将屏幕坐标映射为逻辑坐标
     void OnTouch(bool Touch, int X, int Y);
@@ -20,8 +20,8 @@ public:
 
 private:
     ANativeWindow *RenderWindow = nullptr;    // 原生窗口
-    int LogicWidth = 0;                       // 渲染/触摸基准宽（Java 传入，TextureView 实际尺寸）
-    int LogicHeight = 0;                      // 渲染/触摸基准高（Java 传入，TextureView 实际尺寸）
+    int LogicWidth = 0;                       // 渲染/触摸基准宽（InitEgl 时从 EGL Surface 查询）
+    int LogicHeight = 0;                      // 渲染/触摸基准高（InitEgl 时从 EGL Surface 查询）
     std::atomic<bool> bIsTouch = false;       // 触摸状态
     std::atomic<int> TouchX = 0;              // 触摸 X（渲染坐标）
     std::atomic<int> TouchY = 0;              // 触摸 Y（渲染坐标）

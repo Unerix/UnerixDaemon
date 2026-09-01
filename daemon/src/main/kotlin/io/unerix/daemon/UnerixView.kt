@@ -22,7 +22,7 @@ class UnerixView(
         isFocusable = true
         keepScreenOn = true
         isFocusableInTouchMode = true
-        lvglCreate()
+        onUnerixCreate()
     }
 
     override fun onTouchEvent(event: MotionEvent?): Boolean {
@@ -30,7 +30,7 @@ class UnerixView(
         event?.let {
             when (it.action) {
                 MotionEvent.ACTION_DOWN, MotionEvent.ACTION_MOVE -> {
-                    lvglOnTouch(
+                    onUnerixTouch(
                         touch = true,
                         x = it.x.toInt(),
                         y = it.y.toInt(),
@@ -38,13 +38,13 @@ class UnerixView(
                     return true
                 }
 
-                MotionEvent.ACTION_UP -> lvglOnTouch(
+                MotionEvent.ACTION_UP -> onUnerixTouch(
                     touch = false,
                     x = it.x.toInt(),
                     y = it.y.toInt(),
                 )
 
-                MotionEvent.ACTION_CANCEL -> lvglOnTouch(
+                MotionEvent.ACTION_CANCEL -> onUnerixTouch(
                     touch = false,
                     x = it.x.toInt(),
                     y = it.y.toInt(),
@@ -69,13 +69,13 @@ class UnerixView(
     ) {
         if (!mDestroyed) {
             mSurface = Surface(surface)
-            lvglStart(mSurface, width, height)
+            onUnerixStartRender(mSurface)
         }
     }
 
     override fun onSurfaceTextureDestroyed(surface: SurfaceTexture): Boolean {
         if (!mDestroyed) {
-            lvglStop()
+            onUnerixStopRender()
         }
         if (mSurface != null) {
             mSurface?.release()
@@ -89,9 +89,8 @@ class UnerixView(
         width: Int,
         height: Int
     ) {
-        // 尺寸变化：重启渲染线程以适配新尺寸
-        if (!mDestroyed && mSurface != null && width > 0 && height > 0) {
-            lvglStart(mSurface, width, height)
+        if (!mDestroyed && mSurface != null) {
+            onUnerixStartRender(mSurface)
         }
     }
 
@@ -101,17 +100,17 @@ class UnerixView(
 
     override fun onDetachedFromWindow() {
         if (!mDestroyed) {
-            lvglDestroy()
+            onUnerixDestroy()
             mDestroyed = true
         }
         super.onDetachedFromWindow()
     }
 
-    private external fun lvglCreate()
-    private external fun lvglStart(surface: Surface?, width: Int, height: Int)
-    private external fun lvglOnTouch(touch: Boolean, x: Int, y: Int)
-    private external fun lvglStop()
-    private external fun lvglDestroy()
+    private external fun onUnerixCreate()
+    private external fun onUnerixStartRender(surface: Surface?)
+    private external fun onUnerixTouch(touch: Boolean, x: Int, y: Int)
+    private external fun onUnerixStopRender()
+    private external fun onUnerixDestroy()
 
     companion object {
         init {
