@@ -32,7 +32,6 @@ add_library(
         ${CMAKE_CURRENT_SOURCE_DIR}/imgui/imgui_impl_opengl3.cpp
 )
 
-find_package(lvgl REQUIRED CONFIG)
 find_package(boringssl REQUIRED CONFIG)
 
 target_compile_definitions(${CMAKE_PROJECT_NAME} PRIVATE
@@ -51,7 +50,5 @@ target_link_libraries(
         log
         EGL
         GLESv3
-        lvgl::lvgl
-        lvgl::lvgl_demos
         boringssl::crypto_static
 )

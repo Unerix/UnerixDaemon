@@ -1,7 +1,10 @@
 #include "render_engine.hpp"
 #include "logging.hpp"
-#include <lvgl.h>
-#include <demos/lv_demos.h>
+#include "imgui.h"
+#include "imgui_impl_android.h"
+#include "imgui_impl_opengl3.h"
+#include <GLES3/gl3.h>
+#include <cfloat>
 #include <unistd.h>
 
 using namespace std;
@@ -10,32 +13,29 @@ RenderEngine::~RenderEngine() {
     StopRender();
 }
 
-void RenderEngine::StartRender(ANativeWindow *Window) {
+void RenderEngine::StartRender(ANativeWindow *Window, int Width, int Height) {
     StopRender();
     if (Window == nullptr) {
         return;
     }
-    RenderWindow = Window;
-    ScreenWidth = ANativeWindow_getWidth(RenderWindow);
-    ScreenHeight = ANativeWindow_getHeight(RenderWindow);
-    if (ANativeWindow_setBuffersGeometry(RenderWindow, AppWidth, AppHeight, WINDOW_FORMAT_RGBA_8888) != 0) {
-        LOG_E("Failed to set NativeWindow geometry [%d x %d]", AppWidth, AppHeight);
-        ANativeWindow_release(RenderWindow);
-        Window = nullptr;
+    if (Width <= 0 || Height <= 0) {
+        LOG_E("Invalid size [%d x %d]", Width, Height);
+        ANativeWindow_release(Window);
         return;
     }
-    LOG_D("LV Screen [%d x %d]", AppWidth, AppHeight);
+    RenderWindow = Window;
+    LogicWidth = Width;
+    LogicHeight = Height;
+    LOG_D("ImGui Start [%d x %d]", LogicWidth, LogicHeight);
     bIsRunning = true;
-    RenderThread = thread(&RenderEngine::LvLoopTask, this);
+    RenderThread = thread(&RenderEngine::ImLoopTask, this);
 }
 
 void RenderEngine::OnTouch(bool Touch, int X, int Y) {
-    if (ScreenWidth <= 0 || ScreenHeight <= 0) {
-        return;
-    }
+    // TextureView 下触摸坐标与渲染分辨率一致，直接透传
     bIsTouch = Touch;
-    TouchX = X * AppWidth / ScreenWidth;
-    TouchY = Y * AppHeight / ScreenHeight;
+    TouchX = X;
+    TouchY = Y;
 }
 
 void RenderEngine::StopRender() {
@@ -45,126 +45,291 @@ void RenderEngine::StopRender() {
     }
 }
 
-void RenderEngine::LvLoopTask() {
-    LOG_D("LV Task Start!!");
-    lv_init();
-    lv_tick_set_cb(LvTickGet);
-    lv_log_register_print_cb(LvLogPrint);
-
-    auto *Disp = lv_display_create(AppWidth, AppHeight);
-    lv_display_set_user_data(Disp, this);
-    lv_display_set_flush_cb(Disp, RenderEngine::LvFlushCbStatic);
-
-    size_t BufSize = (size_t) AppWidth * AppHeight * 2;
-    auto *Buf = malloc(BufSize);
-    lv_display_set_buffers(Disp, Buf, nullptr, BufSize, LV_DISPLAY_RENDER_MODE_PARTIAL);
-
-    auto *Indev = lv_indev_create();
-    lv_indev_set_user_data(Indev, this);
-    lv_indev_set_type(Indev, LV_INDEV_TYPE_POINTER);
-    lv_indev_set_read_cb(Indev, RenderEngine::LvTouchCbStatic);
-
-    LvAppEntry();
-
-    // 首帧前提交一次空帧，初始化窗口缓冲
-    if (ANativeWindow_lock(RenderWindow, &WindowBuffer, nullptr) == 0) {
-        ANativeWindow_unlockAndPost(RenderWindow);
+bool RenderEngine::InitEgl() {
+    Display = eglGetDisplay(EGL_DEFAULT_DISPLAY);
+    if (Display == EGL_NO_DISPLAY) {
+        LOG_E("eglGetDisplay failed");
+        return false;
+    }
+    if (!eglInitialize(Display, nullptr, nullptr)) {
+        LOG_E("eglInitialize failed");
+        Display = EGL_NO_DISPLAY;
+        return false;
     }
 
-    // 主循环：按 LVGL 返回间隔休眠（1~33ms，约 30fps）
+    // 官方示例使用的属性集（ES3 通过下方 ContextAttribs 指定）
+    const EGLint ConfigAttribs[] = {
+            EGL_BLUE_SIZE, 8,
+            EGL_GREEN_SIZE, 8,
+            EGL_RED_SIZE, 8,
+            EGL_DEPTH_SIZE, 24,
+            EGL_SURFACE_TYPE, EGL_WINDOW_BIT,
+            EGL_NONE,
+    };
+    EGLConfig Config = nullptr;
+    EGLint NumConfigs = 0;
+    if (!eglChooseConfig(Display, ConfigAttribs, &Config, 1, &NumConfigs) || NumConfigs == 0) {
+        LOG_E("eglChooseConfig failed");
+        DeinitEgl();
+        return false;
+    }
+
+    // 窗口格式与 EGL 配置对齐（官方示例做法）；TextureView 的 buffer 尺寸由 SurfaceTexture
+    // 管理，故尺寸传 0,0 表示不修改，仅设置格式
+    EGLint Format = 0;
+    eglGetConfigAttrib(Display, Config, EGL_NATIVE_VISUAL_ID, &Format);
+    if (ANativeWindow_setBuffersGeometry(RenderWindow, 0, 0, Format) != 0) {
+        LOG_E("Failed to set NativeWindow format");
+        DeinitEgl();
+        return false;
+    }
+
+    const EGLint ContextAttribs[] = {
+            EGL_CONTEXT_CLIENT_VERSION, 3,
+            EGL_NONE,
+    };
+    Context = eglCreateContext(Display, Config, EGL_NO_CONTEXT, ContextAttribs);
+    if (Context == EGL_NO_CONTEXT) {
+        LOG_E("eglCreateContext failed: 0x%x", eglGetError());
+        DeinitEgl();
+        return false;
+    }
+
+    EglSurface = eglCreateWindowSurface(Display, Config, RenderWindow, nullptr);
+    if (EglSurface == EGL_NO_SURFACE) {
+        LOG_E("eglCreateWindowSurface failed: 0x%x", eglGetError());
+        DeinitEgl();
+        return false;
+    }
+
+    if (!eglMakeCurrent(Display, EglSurface, EglSurface, Context)) {
+        LOG_E("eglMakeCurrent failed: 0x%x", eglGetError());
+        DeinitEgl();
+        return false;
+    }
+
+    LOG_D("EGL Surface [%d x %d]", LogicWidth, LogicHeight);
+    return true;
+}
+
+void RenderEngine::DeinitEgl() {
+    if (Display != EGL_NO_DISPLAY) {
+        eglMakeCurrent(Display, EGL_NO_SURFACE, EGL_NO_SURFACE, EGL_NO_CONTEXT);
+        if (Context != EGL_NO_CONTEXT) {
+            eglDestroyContext(Display, Context);
+        }
+        if (EglSurface != EGL_NO_SURFACE) {
+            eglDestroySurface(Display, EglSurface);
+        }
+        eglTerminate(Display);
+    }
+    Display = EGL_NO_DISPLAY;
+    EglSurface = EGL_NO_SURFACE;
+    Context = EGL_NO_CONTEXT;
+}
+
+void RenderEngine::ImLoopTask() {
+    LOG_D("ImGui Task Start!!");
+    if (!InitEgl()) {
+        ANativeWindow_release(RenderWindow);
+        RenderWindow = nullptr;
+        return;
+    }
+
+    IMGUI_CHECKVERSION();
+    ImGui::CreateContext();
+    ImGuiIO &IO = ImGui::GetIO();
+    IO.IniFilename = nullptr; // 不读写 imgui.ini
+    IO.ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard;
+    IO.DisplaySize = ImVec2((float) LogicWidth, (float) LogicHeight);
+    IO.DisplayFramebufferScale = ImVec2(1.0f, 1.0f);
+
+    // 深色风格
+    ImGui::StyleColorsDark();
+
+//    // 以 480 逻辑宽为基准按比例放大 UI（官方示例为固定 3.5f）
+//    float Scale = (float) LogicWidth / 480.0f;
+//    if (Scale < 1.0f) Scale = 1.0f;
+//    if (Scale > 4.0f) Scale = 4.0f;
+//    ImGui::GetStyle().ScaleAllSizes(Scale);
+//    LOG_D("ImGui UI scale: %.2f", Scale);
+
+    // Setup scaling
+    float main_scale = 3.5f;
+    ImGuiStyle &style = ImGui::GetStyle();
+    style.ScaleAllSizes(main_scale);        // Bake a fixed style scale. (until we have a solution for dynamic style scaling, changing this requires resetting Style + calling this again)
+    style.FontScaleDpi = main_scale;        // Set initial font scale.
+
+    style.WindowRounding = 8.0f;
+
+    if (!ImGui_ImplOpenGL3_Init("#version 300 es")) {
+        LOG_E("ImGui_ImplOpenGL3_Init failed");
+        ImGui::DestroyContext();
+        DeinitEgl();
+        ANativeWindow_release(RenderWindow);
+        RenderWindow = nullptr;
+        return;
+    }
+    if (!ImGui_ImplAndroid_Init(RenderWindow)) {
+        LOG_E("ImGui_ImplAndroid_Init failed");
+        ImGui_ImplOpenGL3_Shutdown();
+        ImGui::DestroyContext();
+        DeinitEgl();
+        ANativeWindow_release(RenderWindow);
+        RenderWindow = nullptr;
+        return;
+    }
+
+    // 首帧前提交一次空帧，初始化窗口缓冲（使用与官方一致的浅色背景）
+    glClearColor(0.45f, 0.55f, 0.60f, 1.00f);
+    glClear(GL_COLOR_BUFFER_BIT);
+    eglSwapBuffers(Display, EglSurface);
+
+    // 主循环：约 30fps
     while (bIsRunning) {
-        uint32_t TimeTillNext = lv_timer_handler();
-        if (TimeTillNext < 1) TimeTillNext = 1;
-        if (TimeTillNext > 33) TimeTillNext = 33;
-        usleep(TimeTillNext * 1000);
+        ImGui_ImplAndroid_NewFrame();
+        ImGui_ImplOpenGL3_NewFrame();
+
+        // 转发 JNI 触摸事件到 ImGui
+        if (bIsTouch) {
+            IO.AddMousePosEvent((float) TouchX, (float) TouchY);
+            IO.AddMouseButtonEvent(0, true);
+        } else {
+            IO.AddMouseButtonEvent(0, false);
+            IO.AddMousePosEvent(-FLT_MAX, -FLT_MAX); // 松开后清除悬停状态
+        }
+
+        ImGui::NewFrame();
+        ImAppEntry();
+        ImGui::Render();
+
+        glViewport(0, 0, LogicWidth, LogicHeight);
+        glClearColor(0.45f, 0.55f, 0.60f, 1.00f);
+        glClear(GL_COLOR_BUFFER_BIT);
+        ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
+        eglSwapBuffers(Display, EglSurface);
+
+        usleep(33 * 1000);
     }
 
+    ImGui_ImplOpenGL3_Shutdown();
+    ImGui_ImplAndroid_Shutdown();
+    ImGui::DestroyContext();
+    DeinitEgl();
     ANativeWindow_release(RenderWindow);
-    lv_deinit();
-    free(Buf);
-    if (SurfaceBuffer != nullptr) {
-        free(SurfaceBuffer);
-        SurfaceBuffer = nullptr;
-    }
     RenderWindow = nullptr;
-    LOG_D("LV App Stopped!!");
+    LOG_D("ImGui App Stopped!!");
 }
 
-void RenderEngine::LvAppEntry() {
-    lv_demo_widgets();
-}
+static void ShowExampleAppMainMenuBar();
 
-uint32_t RenderEngine::LvTickGet() {
-    static struct timeval TimeVal;
-    gettimeofday(&TimeVal, nullptr);
-    return (TimeVal.tv_sec * 1000) + (TimeVal.tv_usec / 1000);
-}
+static void ShowExampleMenuFile();
 
-void RenderEngine::LvLogPrint(lv_log_level_t Level, const char *Buf) {
-    switch (Level) {
-        case LV_LOG_LEVEL_INFO:
-            LOG_I("%s", Buf);
-            break;
-        case LV_LOG_LEVEL_WARN:
-            LOG_W("%s", Buf);
-            break;
-        case LV_LOG_LEVEL_ERROR:
-            LOG_E("%s", Buf);
-            break;
-        case LV_LOG_LEVEL_TRACE:
-            LOG_D("%s", Buf);
-            break;
-        default:
-            LOG_I("%s", Buf);
+static void ShowExampleAppFullscreen(bool *p_open);
+
+void RenderEngine::ImAppEntry() {
+    ShowExampleAppMainMenuBar();
+
+
+    static ImGuiWindowFlags flags = ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoSavedSettings;
+    const ImGuiViewport *viewport = ImGui::GetMainViewport();
+    ImGui::SetNextWindowPos(viewport->WorkPos);
+    ImGui::SetNextWindowSize(viewport->WorkSize);
+    if (ImGui::Begin("Unerix Daemon", nullptr, flags)) {
+        ImGui::Text("ImGui %s", IMGUI_VERSION);
+        ImGui::Text("Render: %d x %d", LogicWidth, LogicHeight);
+        ImGui::Text("Touch: %s (%d, %d)", bIsTouch ? "down" : "up", (int) TouchX, (int) TouchY);
+        ImGui::Text("FPS: %.1f", ImGui::GetIO().Framerate);
+        ImGui::End();
     }
+
 }
 
-void RenderEngine::LvTouchCallback(lv_indev_t *IndevDriver, lv_indev_data_t *Data) {
-    if (bIsTouch) {
-        Data->point.x = (short) TouchX;
-        Data->point.y = (short) TouchY;
-        Data->state = LV_INDEV_STATE_PR;
-    } else {
-        Data->state = LV_INDEV_STATE_REL;
-    }
-}
-
-void RenderEngine::LvFlushCallback(lv_display_t *Display, const lv_area_t *Area, uint8_t *PxMap) {
-    if (bIsRunning && RenderWindow != nullptr) {
-        if (SurfaceBuffer == nullptr) {
-            SurfaceSize = sizeof(uint32_t) * WindowBuffer.stride * WindowBuffer.height;
-            SurfaceBuffer = (uint32_t *) malloc(SurfaceSize);
+static void ShowExampleAppMainMenuBar() {
+    if (ImGui::BeginMainMenuBar()) {
+        if (ImGui::BeginMenu("File")) {
+            ShowExampleMenuFile();
+            ImGui::EndMenu();
         }
-        int Width = Area->x2 - Area->x1 + 1;
-        int Height = Area->y2 - Area->y1 + 1;
-        auto *Src = (uint16_t *) PxMap;
-        auto Stride = WindowBuffer.stride;
-        // 逐像素 RGB565 → RGBA_8888
-        for (int I = 0; I < Height; I++) {
-            auto *Dst = &SurfaceBuffer[(Area->y1 + I) * Stride + Area->x1];
-            auto *SrcLine = &Src[I * Width];
-            for (int J = 0; J < Width; J++) {
-                uint16_t Color = SrcLine[J];
-                auto Red = (uint8_t) (((Color >> 11) & 0x1F) * 255 / 31);
-                auto Green = (uint8_t) (((Color >> 5) & 0x3F) * 255 / 63);
-                auto Blue = (uint8_t) ((Color & 0x1F) * 255 / 31);
-                Dst[J] = (0xFFu << 24) | ((uint32_t) Blue << 16) | ((uint32_t) Green << 8) | Red;
+        if (ImGui::BeginMenu("Edit")) {
+            if (ImGui::MenuItem("Undo", "Ctrl+Z")) {}
+            if (ImGui::MenuItem("Redo", "Ctrl+Y", false, false)) {} // Disabled item
+            ImGui::Separator();
+            if (ImGui::MenuItem("Cut", "Ctrl+X")) {}
+            if (ImGui::MenuItem("Copy", "Ctrl+C")) {}
+            if (ImGui::MenuItem("Paste", "Ctrl+V")) {}
+            ImGui::EndMenu();
+        }
+        ImGui::EndMainMenuBar();
+    }
+}
+
+static void ShowExampleMenuFile() {
+    ImGui::MenuItem("(demo menu)", NULL, false, false);
+    if (ImGui::MenuItem("New")) {}
+    if (ImGui::MenuItem("Open", "Ctrl+O")) {}
+    if (ImGui::BeginMenu("Open Recent")) {
+        ImGui::MenuItem("fish_hat.c");
+        ImGui::MenuItem("fish_hat.inl");
+        ImGui::MenuItem("fish_hat.h");
+        if (ImGui::BeginMenu("More..")) {
+            ImGui::MenuItem("Hello");
+            ImGui::MenuItem("Sailor");
+            if (ImGui::BeginMenu("Recurse..")) {
+                ShowExampleMenuFile();
+                ImGui::EndMenu();
             }
+            ImGui::EndMenu();
         }
-        if (ANativeWindow_lock(RenderWindow, &WindowBuffer, nullptr) == 0) {
-            memcpy(WindowBuffer.bits, SurfaceBuffer, SurfaceSize);
-            ANativeWindow_unlockAndPost(RenderWindow);
-        }
+        ImGui::EndMenu();
     }
-    lv_disp_flush_ready(Display);
-}
+    if (ImGui::MenuItem("Save", "Ctrl+S")) {}
+    if (ImGui::MenuItem("Save As..")) {}
 
-void RenderEngine::LvTouchCbStatic(lv_indev_t *IndevDriver, lv_indev_data_t *Data) {
-    auto *Engine = (RenderEngine *) lv_indev_get_user_data(IndevDriver);
-    Engine->LvTouchCallback(IndevDriver, Data);
-}
+    ImGui::Separator();
+    if (ImGui::BeginMenu("Options")) {
+        static bool enabled = true;
+        ImGui::MenuItem("Enabled", "", &enabled);
+        ImGui::BeginChild("child", ImVec2(0, ImGui::GetTextLineHeightWithSpacing() * 5.0f), ImGuiChildFlags_Borders);
+        for (int i = 0; i < 10; i++)
+            ImGui::Text("Scrolling Text %d", i);
+        ImGui::EndChild();
+        static float f = 0.5f;
+        static int n = 0;
+        ImGui::SliderFloat("Value", &f, 0.0f, 1.0f);
+        ImGui::InputFloat("Input", &f, 0.1f);
+        ImGui::Combo("Combo", &n, "Yes\0No\0Maybe\0\0");
+        ImGui::EndMenu();
+    }
 
-void RenderEngine::LvFlushCbStatic(lv_display_t *Display, const lv_area_t *Area, uint8_t *PxMap) {
-    auto *Engine = (RenderEngine *) lv_display_get_user_data(Display);
-    Engine->LvFlushCallback(Display, Area, PxMap);
+    if (ImGui::BeginMenu("Colors")) {
+        float sz = ImGui::GetTextLineHeight();
+        for (int i = 0; i < ImGuiCol_COUNT; i++) {
+            const char *name = ImGui::GetStyleColorName((ImGuiCol) i);
+            ImVec2 p = ImGui::GetCursorScreenPos();
+            ImGui::GetWindowDrawList()->AddRectFilled(p, ImVec2(p.x + sz, p.y + sz), ImGui::GetColorU32((ImGuiCol) i));
+            ImGui::Dummy(ImVec2(sz, sz));
+            ImGui::SameLine();
+            ImGui::MenuItem(name);
+        }
+        ImGui::EndMenu();
+    }
+
+    // Here we demonstrate appending again to the "Options" menu (which we already created above)
+    // Of course in this demo it is a little bit silly that this function calls BeginMenu("Options") twice.
+    // In a real code-base using it would make senses to use this feature from very different code locations.
+    if (ImGui::BeginMenu("Options")) // <-- Append!
+    {
+        static bool b = true;
+        ImGui::Checkbox("SomeOption", &b);
+        ImGui::EndMenu();
+    }
+
+    if (ImGui::BeginMenu("Disabled", false)) // Disabled
+    {
+        IM_ASSERT(0);
+    }
+    if (ImGui::MenuItem("Checked", NULL, true)) {}
+    ImGui::Separator();
+    if (ImGui::MenuItem("Quit", "Alt+F4")) {}
 }

@@ -69,7 +69,7 @@ class UnerixView(
     ) {
         if (!mDestroyed) {
             mSurface = Surface(surface)
-            lvglStart(mSurface)
+            lvglStart(mSurface, width, height)
         }
     }
 
@@ -88,7 +88,12 @@ class UnerixView(
         surface: SurfaceTexture,
         width: Int,
         height: Int
-    ) = Unit
+    ) {
+        // 尺寸变化：重启渲染线程以适配新尺寸
+        if (!mDestroyed && mSurface != null && width > 0 && height > 0) {
+            lvglStart(mSurface, width, height)
+        }
+    }
 
     override fun onSurfaceTextureUpdated(
         surface: SurfaceTexture,
@@ -103,7 +108,7 @@ class UnerixView(
     }
 
     private external fun lvglCreate()
-    private external fun lvglStart(surface: Surface?)
+    private external fun lvglStart(surface: Surface?, width: Int, height: Int)
     private external fun lvglOnTouch(touch: Boolean, x: Int, y: Int)
     private external fun lvglStop()
     private external fun lvglDestroy()

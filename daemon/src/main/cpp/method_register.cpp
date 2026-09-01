@@ -14,8 +14,8 @@ static void NativeCreate(JNIEnv *Env, jobject) {
     }
 }
 
-// Surface → ANativeWindow → 启动渲染
-static void NativeStart(JNIEnv *Env, jobject, jobject Surface) {
+// Surface → ANativeWindow（宽高由 Java 传入）→ 启动渲染
+static void NativeStart(JNIEnv *Env, jobject, jobject Surface, jint Width, jint Height) {
     if (GlobalApp == nullptr || Surface == nullptr) {
         return;
     }
@@ -23,7 +23,7 @@ static void NativeStart(JNIEnv *Env, jobject, jobject Surface) {
     if (NativeWindow == nullptr) {
         return;
     }
-    GlobalApp->StartRender(NativeWindow);
+    GlobalApp->StartRender(NativeWindow, Width, Height);
 }
 
 // 转发触摸
@@ -52,7 +52,7 @@ static void NativeDestroy(JNIEnv *Env, jobject) {
 
 static const JNINativeMethod NativeMethods[] = {
         {"lvglCreate", "()V", (void *) NativeCreate},
-        {"lvglStart", "(Landroid/view/Surface;)V", (void *) NativeStart},
+        {"lvglStart", "(Landroid/view/Surface;II)V", (void *) NativeStart},
         {"lvglOnTouch", "(ZII)V", (void *) NativeOnTouch},
         {"lvglStop", "()V", (void *) NativeStop},
         {"lvglDestroy", "()V", (void *) NativeDestroy},

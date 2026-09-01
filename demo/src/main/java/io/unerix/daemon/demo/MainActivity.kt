@@ -8,10 +8,12 @@ import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -22,36 +24,47 @@ import io.unerix.daemon.UnerixView
 import io.unerix.daemon.demo.ui.theme.UnerixDaemonTheme
 
 class MainActivity : ComponentActivity() {
+    @OptIn(ExperimentalMaterial3Api::class)
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
         setContent {
             UnerixDaemonTheme {
-                Scaffold(modifier = Modifier.fillMaxSize()) { innerPadding ->
-                    BoxWithConstraints(
+                Scaffold(
+                    modifier = Modifier.fillMaxSize(),
+                    topBar = {
+                        TopAppBar(
+                            title = { Text("Unerix Daemon Demo") },
+                        )
+                    }
+                ) { innerPadding ->
+                    AndroidView(
+                        factory = { context -> UnerixView(context) },
                         modifier = Modifier
                             .fillMaxSize()
-                            .padding(paddingValues = innerPadding)
-                            .padding(all = 16.dp),
-                        contentAlignment = Alignment.Center,
-                    ) {
-                        val aspectRatio = 480f / 320f
-                        val (width, height) = if (maxWidth / maxHeight > aspectRatio) {
-                            maxHeight * aspectRatio to maxHeight
-                        } else {
-                            maxWidth to maxWidth / aspectRatio
-                        }
-                        Surface(
-                            modifier = Modifier.size(width, height),
-                            color = MaterialTheme.colorScheme.primaryContainer,
-                            shape = MaterialTheme.shapes.large,
-                        ) {
-                            AndroidView(
-                                factory = { context -> UnerixView(context) },
-                                modifier = Modifier.fillMaxSize(),
-                            )
-                        }
-                    }
+                            .padding(innerPadding),
+                    )
+//                    BoxWithConstraints(
+//                        modifier = Modifier
+//                            .fillMaxSize()
+//                            .padding(paddingValues = innerPadding)
+//                            .padding(all = 16.dp),
+//                        contentAlignment = Alignment.Center,
+//                    ) {
+//                        val aspectRatio = 480f / 320f
+//                        val (width, height) = if (maxWidth / maxHeight > aspectRatio) {
+//                            maxHeight * aspectRatio to maxHeight
+//                        } else {
+//                            maxWidth to maxWidth / aspectRatio
+//                        }
+//                        Surface(
+//                            modifier = Modifier.size(width, height),
+//                            color = MaterialTheme.colorScheme.primaryContainer,
+//                            shape = MaterialTheme.shapes.large,
+//                        ) {
+//
+//                        }
+//                    }
                 }
             }
         }
