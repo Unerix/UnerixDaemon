@@ -23,20 +23,34 @@ add_library(
         context_manager.cpp
         method_register.cpp
         render_engine.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/imgui/imgui.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/imgui/imgui_demo.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/imgui/imgui_draw.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/imgui/imgui_tables.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/imgui/imgui_widgets.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/imgui/imgui_impl_android.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/imgui/imgui_impl_opengl3.cpp
 )
 
 find_package(lvgl REQUIRED CONFIG)
 find_package(boringssl REQUIRED CONFIG)
 
+target_compile_definitions(${CMAKE_PROJECT_NAME} PRIVATE
+        IMGUI_IMPL_OPENGL_ES3
+)
+
 target_include_directories(
         ${CMAKE_PROJECT_NAME} PRIVATE
         ${CMAKE_CURRENT_SOURCE_DIR}
+        ${CMAKE_CURRENT_SOURCE_DIR}/imgui
 )
 
 target_link_libraries(
         ${CMAKE_PROJECT_NAME}
         android
         log
+        EGL
+        GLESv3
         lvgl::lvgl
         lvgl::lvgl_demos
         boringssl::crypto_static
