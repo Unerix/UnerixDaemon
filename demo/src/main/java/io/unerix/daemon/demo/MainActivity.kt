@@ -38,12 +38,20 @@ class MainActivity : ComponentActivity() {
                         )
                     }
                 ) { innerPadding ->
-                    AndroidView(
-                        factory = { context -> UnerixView(context) },
+                    Surface(
                         modifier = Modifier
                             .fillMaxSize()
-                            .padding(innerPadding),
-                    )
+                            .padding(paddingValues = innerPadding)
+                            .padding(all = 16.dp),
+                        color = MaterialTheme.colorScheme.primaryContainer,
+                        shape = MaterialTheme.shapes.medium,
+                    ) {
+                        AndroidView(
+                            factory = { context -> UnerixView(context) },
+                            modifier = Modifier.fillMaxSize()
+                        )
+                    }
+
 //                    BoxWithConstraints(
 //                        modifier = Modifier
 //                            .fillMaxSize()

@@ -164,10 +164,10 @@ void RenderEngine::ImLoopTask() {
     // Setup scaling
     float main_scale = 3.5f;
     ImGuiStyle &style = ImGui::GetStyle();
-    style.ScaleAllSizes(main_scale);        // Bake a fixed style scale. (until we have a solution for dynamic style scaling, changing this requires resetting Style + calling this again)
-    style.FontScaleDpi = main_scale;        // Set initial font scale.
+    style.ScaleAllSizes(main_scale);
+    style.FontScaleDpi = main_scale;
 
-    style.WindowRounding = 8.0f;
+    style.WindowRounding = 8.0f * main_scale;
 
     if (!ImGui_ImplOpenGL3_Init("#version 300 es")) {
         LOG_E("ImGui_ImplOpenGL3_Init failed");
@@ -238,15 +238,40 @@ void RenderEngine::ImAppEntry() {
     ShowExampleAppMainMenuBar();
 
 
-    static ImGuiWindowFlags flags = ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoSavedSettings;
+    static ImGuiWindowFlags flags = ImGuiWindowFlags_NoMove
+            | ImGuiWindowFlags_NoCollapse
+            | ImGuiWindowFlags_NoSavedSettings;
     const ImGuiViewport *viewport = ImGui::GetMainViewport();
-    ImGui::SetNextWindowPos(viewport->WorkPos);
-    ImGui::SetNextWindowSize(viewport->WorkSize);
+    // 窗口四边保持 16 边距
+    float WindowMargin = 16.0f;
+    ImGui::SetNextWindowPos(
+            ImVec2(
+                    viewport->WorkPos.x + WindowMargin,
+                    viewport->WorkPos.y + WindowMargin
+            )
+    );
+    ImGui::SetNextWindowSize(
+            ImVec2(
+                    viewport->WorkSize.x - 2 * WindowMargin,
+                    viewport->WorkSize.y - 2 * WindowMargin
+            )
+    );
     if (ImGui::Begin("Unerix Daemon", nullptr, flags)) {
-        ImGui::Text("ImGui %s", IMGUI_VERSION);
+        ImGui::Text("ImGui Version: %s", IMGUI_VERSION);
         ImGui::Text("Render: %d x %d", LogicWidth, LogicHeight);
         ImGui::Text("Touch: %s (%d, %d)", bIsTouch ? "down" : "up", (int) TouchX, (int) TouchY);
         ImGui::Text("FPS: %.1f", ImGui::GetIO().Framerate);
+
+
+        ImGui::Text("is installed: true");
+        ImGui::Text("Core Version: 1.0.0");
+        ImGui::Button("Install");
+        ImGui::Button("Uninstall");
+        ImGui::Button("Open");
+        ImGui::Button("Kill");
+        ImGui::Text("Sig is ok");
+
+
         ImGui::End();
     }
 
@@ -254,6 +279,11 @@ void RenderEngine::ImAppEntry() {
 
 static void ShowExampleAppMainMenuBar() {
     if (ImGui::BeginMainMenuBar()) {
+        if (ImGui::BeginMenu("Unerix Daemon")){
+            if (ImGui::MenuItem("About")) {}
+            if (ImGui::MenuItem("Exit")) {}
+            ImGui::EndMenu();
+        }
         if (ImGui::BeginMenu("File")) {
             ShowExampleMenuFile();
             ImGui::EndMenu();
